@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 let express = require('express');
 let expressWs = require('express-ws');
 let fs = require('fs');
