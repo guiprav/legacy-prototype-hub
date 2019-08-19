@@ -1,8 +1,13 @@
 let { produce } = require('immer');
 
+let defaultConfig = {
+  subscriptionUrl: location.origin.replace(/^http(s?):/, 'ws$1:'),
+  patchUrl: location.origin,
+};
+
 module.exports = class PrototypeHub {
   constructor(config) {
-    Object.assign(this, config);
+    Object.assign(this, { ...defaultConfig, ...config });
   }
 
   async subscribe(cb) {
