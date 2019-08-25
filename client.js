@@ -8,6 +8,7 @@ let defaultConfig = {
 module.exports = class PrototypeHub {
   constructor(config) {
     Object.assign(this, { ...defaultConfig, ...config });
+    this.state = {};
   }
 
   async subscribe(cb) {
