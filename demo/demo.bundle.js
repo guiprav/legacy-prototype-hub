@@ -1,9 +1,15 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-let { produce } = require('immer');
+let { applyPatches, produce } = require('immer');
+
+let defaultConfig = {
+  subscriptionUrl: location.origin.replace(/^http(s?):/, 'ws$1:'),
+  patchUrl: location.origin,
+};
 
 module.exports = class PrototypeHub {
   constructor(config) {
-    Object.assign(this, config);
+    Object.assign(this, { ...defaultConfig, ...config });
+    this.state = {};
   }
 
   async subscribe(cb) {
@@ -34,6 +40,7 @@ module.exports = class PrototypeHub {
     });
 
     let onClose = () => {
+      this.subscriptionCb = null;
       this.ws = null;
     };
 
@@ -42,6 +49,7 @@ module.exports = class PrototypeHub {
       ws.removeEventListener('error', onError);
       ws.removeEventListener('message', onMessage);
 
+      this.subscriptionCb = null;
       this.ws = null;
 
       cb(err);
@@ -53,10 +61,12 @@ module.exports = class PrototypeHub {
     ws.addEventListener('error', onError);
     ws.addEventListener('message', onMessage);
 
+    this.subscriptionCb = cb;
+
     return this.ws = ws;
   }
 
-  async patch(cb) {
+  async patch(cb, { optimistic = true } = {}) {
     let patches;
 
     produce(
@@ -64,6 +74,11 @@ module.exports = class PrototypeHub {
       state => { cb(state); },
       xs => patches = xs,
     );
+
+    if (optimistic && this.subscriptionCb) {
+      this.state = applyPatches(this.state, patches);
+      this.subscriptionCb(null, this.state);
+    }
 
     let res = await fetch(this.patchUrl, {
       method: 'PATCH',

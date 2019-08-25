@@ -1,4 +1,4 @@
-let { produce } = require('immer');
+let { applyPatches, produce } = require('immer');
 
 let defaultConfig = {
   subscriptionUrl: location.origin.replace(/^http(s?):/, 'ws$1:'),
@@ -39,6 +39,7 @@ module.exports = class PrototypeHub {
     });
 
     let onClose = () => {
+      this.subscriptionCb = null;
       this.ws = null;
     };
 
@@ -47,6 +48,7 @@ module.exports = class PrototypeHub {
       ws.removeEventListener('error', onError);
       ws.removeEventListener('message', onMessage);
 
+      this.subscriptionCb = null;
       this.ws = null;
 
       cb(err);
@@ -58,10 +60,12 @@ module.exports = class PrototypeHub {
     ws.addEventListener('error', onError);
     ws.addEventListener('message', onMessage);
 
+    this.subscriptionCb = cb;
+
     return this.ws = ws;
   }
 
-  async patch(cb) {
+  async patch(cb, { optimistic = true } = {}) {
     let patches;
 
     produce(
@@ -69,6 +73,11 @@ module.exports = class PrototypeHub {
       state => { cb(state); },
       xs => patches = xs,
     );
+
+    if (optimistic && this.subscriptionCb) {
+      this.state = applyPatches(this.state, patches);
+      this.subscriptionCb(null, this.state);
+    }
 
     let res = await fetch(this.patchUrl, {
       method: 'PATCH',
